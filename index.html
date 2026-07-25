@@ -54,13 +54,12 @@ h2{color:#e94560;font-size:14px;margin-bottom:10px}
 <option value="-1">Disattiva</option>
 </select>
 <button class="btn" style="background:#4caf50" onclick="activate()">Conferma</button>
-<select class="input" id="actAllPeriod" style="font-size:12px;margin-top:6px">
-<option value="1">Attiva TUTTI per 1 mese</option>
-<option value="3">Attiva TUTTI per 3 mesi</option>
-<option value="6">Attiva TUTTI per 6 mesi</option>
-<option value="12">Attiva TUTTI per 12 mesi</option>
-</select>
-<button class="btn" style="background:#30363d" onclick="activateAll()">Esegui</button>
+<div style="display:flex;gap:6px;margin-top:6px">
+<button class="btn" style="flex:1;background:#30363d;font-size:11px" onclick="activateAll(1)">Tutti 1 mese</button>
+<button class="btn" style="flex:1;background:#30363d;font-size:11px" onclick="activateAll(3)">Tutti 3 mesi</button>
+<button class="btn" style="flex:1;background:#30363d;font-size:11px" onclick="activateAll(6)">Tutti 6 mesi</button>
+<button class="btn" style="flex:1;background:#30363d;font-size:11px" onclick="activateAll(12)">Tutti 12 mesi</button>
+</div>
 <div id="actStatus" style="text-align:center;font-size:12px;margin-top:4px"></div>
 </div>
 
@@ -147,8 +146,7 @@ document.getElementById('actStatus').textContent=msg;
 loadClients();
 }
 
-async function activateAll(){
-var period=parseInt(document.getElementById('actAllPeriod').value)||1;
+async function activateAll(period){
 if(!confirm('Attivare TUTTI per '+period+' mesi?'))return;
 var r=await fetch(FB+'/clients.json');var d=await r.json();
 if(!d){return}
