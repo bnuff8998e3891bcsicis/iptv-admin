@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -12,7 +13,7 @@ h1{color:#e94560;text-align:center;margin-bottom:4px}
 .sub{text-align:center;color:#667788;font-size:12px;margin-bottom:20px}
 .card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:16px;margin-bottom:12px}
 h2{color:#e94560;font-size:14px;margin-bottom:10px}
-.input{width:100%;padding:10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:13px;outline:none;margin-bottom:6px}
+.input,select{width:100%;padding:10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:13px;outline:none;margin-bottom:6px}
 .input:focus{border-color:#e94560}
 .row{display:flex;gap:8px}.row>*{flex:1}
 .btn{width:100%;padding:10px;background:#e94560;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer}
@@ -23,16 +24,13 @@ h2{color:#e94560;font-size:14px;margin-bottom:10px}
 .tabs{display:flex;gap:6px;margin-bottom:10px}
 .tab{flex:1;padding:7px;text-align:center;border-radius:5px;cursor:pointer;font-size:11px;border:1px solid #30363d;background:#0d1117;color:#8899aa}
 .tab.active{background:#e94560;color:#fff}
-.cli{display:flex;align-items:center;justify-content:space-between;padding:10px;margin-bottom:6px;border-radius:6px;background:#0d1117;border:1px solid #21262d}
+.cli{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;margin-bottom:6px;border-radius:6px;background:#0d1117;border:1px solid #21262d}
 .cli-code{color:#e94560;font-weight:700;font-size:14px}
 .cli-date{font-size:10px;color:#667788}
 .status{text-align:center;padding:8px;border-radius:6px;display:none;font-size:12px;margin-top:4px}
 .status.show{display:block}
 .ok{background:rgba(27,94,32,.6);color:#a5d6a7}
 .err{background:rgba(183,28,28,.6);color:#ef9a9a}
-.act-badge{padding:2px 6px;border-radius:3px;font-size:9px;margin-left:4px}
-.act-yes{background:#1b5e20;color:#a5d6a7}
-.act-no{background:#b71c1c;color:#ef9a9a}
 </style>
 </head>
 <body>
@@ -43,11 +41,16 @@ h2{color:#e94560;font-size:14px;margin-bottom:10px}
 <div class="card">
 <h2>Attivazione</h2>
 <input class="input" id="actCode" placeholder="Codice dispositivo" style="text-transform:uppercase;text-align:center;font-size:14px;font-weight:700;letter-spacing:2px">
-<div class="row">
-<button class="btn" style="background:#4caf50" onclick="activate(true)">Attiva</button>
-<button class="btn" style="background:#ef5350" onclick="activate(false)">Disattiva</button>
-</div>
-<button class="btn" style="background:#30363d;margin-top:6px" onclick="activateAll()">Attiva TUTTI i Dispositivi</button>
+<select class="input" id="actPeriod" style="font-size:12px">
+<option value="0">Senza scadenza</option>
+<option value="1">1 mese</option>
+<option value="3">3 mesi</option>
+<option value="6">6 mesi</option>
+<option value="12">12 mesi</option>
+<option value="-1">Disattiva</option>
+</select>
+<button class="btn" style="background:#4caf50" onclick="activate()">Conferma</button>
+<button class="btn" style="background:#30363d;margin-top:6px" onclick="activateAll()">Attiva TUTTI (1 mese)</button>
 <div id="actStatus" style="text-align:center;font-size:12px;margin-top:4px"></div>
 </div>
 
@@ -82,7 +85,7 @@ h2{color:#e94560;font-size:14px;margin-bottom:10px}
 <script>
 var FB='https://iptv-player-eac9e-default-rtdb.europe-west1.firebasedatabase.app';
 var activated={};
-function S(m,t){var e=document.getElementById('status');e.textContent=m;e.className='status show '+t}
+function S(m,t){document.getElementById('status').textContent=m;document.getElementById('status').className='status show '+t}
 function st(t){
 document.getElementById('tm').classList.toggle('active',t==='m3u');
 document.getElementById('tx').classList.toggle('active',t==='xc');
@@ -100,78 +103,82 @@ async function loadClients(){
 await loadActivated();
 var list=document.getElementById('clientsList');
 try{
-var r=await fetch(FB+'/clients.json');
-var d=await r.json();
+var r=await fetch(FB+'/clients.json');var d=await r.json();
 if(!d||Object.keys(d).length===0){list.innerHTML='Nessun cliente';return}
 var items=[];
 for(var code in d){
 var pl=d[code].playlists||[];
-var isAct=!!activated[code];
-items.push('<div class="cli"><div><div class="cli-code">'+code+' <span class="act-badge '+(isAct?'act-yes':'act-no')+'">'+(isAct?'ATTIVO':'NON ATTIVO')+'</span> <span style="color:#667788;font-size:10px">('+pl.length+' PL)</span></div><div class="cli-date">'+new Date(d[code].lastSeen||0).toLocaleString()+'</div></div><div><button class="btn-sm" onclick="viewClient(\''+code+'\')">Vedi</button> <button class="btn-sm '+(isAct?'del':'ok')+'" onclick="activateCode(\''+code+'\','+!isAct+')">'+(isAct?'Disattiva':'Attiva')+'</button> <button class="btn-sm del" onclick="delClient(\''+code+'\')">Elimina</button></div></div>');
+var act=activated[code];
+var actText='NON ATTIVO';
+var actColor='err';
+if(act===true||(act&&act!=='true')){actText='ATTIVO';actColor='ok';}
+if(act&&typeof act==='object'&&act.expires){var exp=new Date(act.expires);if(Date.now()>act.expires){actText='SCADUTO';actColor='del'}else{actText='Attivo fino '+exp.toLocaleDateString();actColor='ok';}}
+items.push('<div class="cli"><div><div class="cli-code">'+code+'</div><div class="cli-date" style="color:var(--c)">'+actText+' ('+pl.length+' PL)</div></div><div><button class="btn-sm" onclick="viewClient(\''+code+'\')">Vedi</button><button class="btn-sm del" onclick="delClient(\''+code+'\')">Elimina</button></div></div>'.replace('var(--c)',actColor==='ok'?'#4caf50':actColor==='del'?'#ef5350':'#8899aa'));
 }
 list.innerHTML=items.join('');
 }catch(e){list.innerHTML='Errore: '+e.message}
 }
 
-async function activate(on){
+async function activate(){
 var code=document.getElementById('actCode').value.trim().toUpperCase();
 if(!code||code.length<6){document.getElementById('actStatus').textContent='Inserisci codice';return}
-await activateCode(code,on);
-document.getElementById('actStatus').textContent=(on?'Attivato':'Disattivato')+': '+code;
+var period=parseInt(document.getElementById('actPeriod').value);
+if(period===-1){
+await fetch(FB+'/activated/'+code+'.json',{method:'DELETE'});
+document.getElementById('actStatus').innerHTML='Disattivato: '+code;
+}else{
+var expires=period===0?0:Date.now()+period*30*86400000;
+var data=period===0?'true':JSON.stringify({expires:expires});
+await fetch(FB+'/activated/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:data});
+var msg='Attivato: '+code+(period>0?' - scade '+new Date(expires).toLocaleDateString():(period===0?' - illimitato':''));
+document.getElementById('actStatus').textContent=msg;
 }
-
-async function activateCode(code,on){
-if(on){await fetch(FB+'/activated/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:'true'});}
-else{await fetch(FB+'/activated/'+code+'.json',{method:'DELETE'});}
 loadClients();
 }
 
 async function activateAll(){
-if(!confirm('Attivare TUTTI i dispositivi?'))return;
-var r=await fetch(FB+'/clients.json');
-var d=await r.json();
+if(!confirm('Attivare TUTTI per 1 mese?'))return;
+var r=await fetch(FB+'/clients.json');var d=await r.json();
 if(!d){return}
-for(var code in d){await fetch(FB+'/activated/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:'true'});}
-S('Tutti attivati!','ok');
-loadClients();
+var expires=Date.now()+30*86400000;
+var data=JSON.stringify({expires:expires});
+for(var code in d){await fetch(FB+'/activated/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:data});}
+S('Tutti attivati per 1 mese!','ok');loadClients();
 }
 
 async function send(){
 var code=document.getElementById('clientCode').value.trim().toUpperCase();
 if(!code||code.length<6){S('Inserisci codice','err');return}
-var isXc=document.getElementById('tx').classList.contains('active');
-var isSt=document.getElementById('ts').classList.contains('active');
+var isXc=document.getElementById('tx').classList.contains('active'),isSt=document.getElementById('ts').classList.contains('active');
 var url,name;
-if(isSt){var s=document.getElementById('ss').value.trim(),m=document.getElementById('sm').value.trim();if(!s||!m){S('Server e MAC','err');return}url='stalker://'+btoa(s)+'/'+m.replace(/[:-]/g,'').toUpperCase();name='STB '+m.slice(-6);}
-else if(isXc){var s=document.getElementById('xs').value.trim(),u=document.getElementById('xu').value.trim(),p=document.getElementById('xp').value.trim();if(!s||!u||!p){S('Server, User, Pass','err');return}url='xc://'+btoa(s)+'/'+btoa(u)+'/'+btoa(p);name=u;}
+if(isSt){var s=document.getElementById('ss').value.trim(),m=document.getElementById('sm').value.trim();if(!s||!m){S('Server e MAC','err');return}url='stalker://'+btoa(s)+'/'+m.replace(/[:-]/g,'').toUpperCase();name='STB '+m.slice(-6)}
+else if(isXc){var s=document.getElementById('xs').value.trim(),u=document.getElementById('xu').value.trim(),p=document.getElementById('xp').value.trim();if(!s||!u||!p){S('Server,User,Pass','err');return}url='xc://'+btoa(s)+'/'+btoa(u)+'/'+btoa(p);name=u}
 else{url=document.getElementById('mu').value.trim();name=document.getElementById('pn').value.trim()||'Playlist';if(!url){S('URL M3U','err');return}}
 try{
-var config={m3uUrl:url,playlistName:name,userAgent:'VLC/3.0.20 LibVLC/3.0.20',referer:'',origin:'',xForwardedFor:'',cookies:'',proxyHost:'',proxyPort:0,proxyType:'',proxyUser:'',proxyPass:'',dnsServer:'',epgUrl:'',customHeaders:{}};
-var r=await fetch(FB+'/configs/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
-if(r.ok){S('Inviato a '+code,'ok')}else{S('Errore','err')}
+var cf={m3uUrl:url,playlistName:name,userAgent:'VLC/3.0.20 LibVLC/3.0.20',referer:'',origin:'',xForwardedFor:'',cookies:'',proxyHost:'',proxyPort:0,proxyType:'',proxyUser:'',proxyPass:'',dnsServer:'',epgUrl:'',customHeaders:{}};
+await fetch(FB+'/configs/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cf)});
+S('Inviato a '+code,'ok');
 }catch(e){S('Errore: '+e.message,'err')}
 }
 
 async function sendToAll(){
-var isXc=document.getElementById('tx').classList.contains('active');
-var isSt=document.getElementById('ts').classList.contains('active');
+var isXc=document.getElementById('tx').classList.contains('active'),isSt=document.getElementById('ts').classList.contains('active');
 var url,name;
-if(isSt){var s=document.getElementById('ss').value.trim(),m=document.getElementById('sm').value.trim();if(!s||!m){S('Server e MAC','err');return}url='stalker://'+btoa(s)+'/'+m.replace(/[:-]/g,'').toUpperCase();name='STB '+m.slice(-6);}
-else if(isXc){var s=document.getElementById('xs').value.trim(),u=document.getElementById('xu').value.trim(),p=document.getElementById('xp').value.trim();if(!s||!u||!p){S('Server, User, Pass','err');return}url='xc://'+btoa(s)+'/'+btoa(u)+'/'+btoa(p);name=u;}
+if(isSt){var s=document.getElementById('ss').value.trim(),m=document.getElementById('sm').value.trim();if(!s||!m){S('Server e MAC','err');return}url='stalker://'+btoa(s)+'/'+m.replace(/[:-]/g,'').toUpperCase();name='STB '+m.slice(-6)}
+else if(isXc){var s=document.getElementById('xs').value.trim(),u=document.getElementById('xu').value.trim(),p=document.getElementById('xp').value.trim();if(!s||!u||!p){S('Server,User,Pass','err');return}url='xc://'+btoa(s)+'/'+btoa(u)+'/'+btoa(p);name=u}
 else{url=document.getElementById('mu').value.trim();name=document.getElementById('pn').value.trim()||'Playlist';if(!url){S('URL M3U','err');return}}
 if(!confirm('Inviare a TUTTI?'))return;
 var r=await fetch(FB+'/clients.json');var d=await r.json();
 if(!d||Object.keys(d).length===0){S('Nessun cliente','err');return}
 var codes=Object.keys(d);
-var config={m3uUrl:url,playlistName:name,userAgent:'VLC/3.0.20 LibVLC/3.0.20',referer:'',origin:'',xForwardedFor:'',cookies:'',proxyHost:'',proxyPort:0,proxyType:'',proxyUser:'',proxyPass:'',dnsServer:'',epgUrl:'',customHeaders:{}};
-var done=0;for(var code of codes){try{await fetch(FB+'/configs/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});done++}catch(e){}}
-S('Inviato a '+done+'/'+codes.length+' clienti','ok');loadClients();
+var cf={m3uUrl:url,playlistName:name,userAgent:'VLC/3.0.20 LibVLC/3.0.20',referer:'',origin:'',xForwardedFor:'',cookies:'',proxyHost:'',proxyPort:0,proxyType:'',proxyUser:'',proxyPass:'',dnsServer:'',epgUrl:'',customHeaders:{}};
+var done=0;for(var code of codes){try{await fetch(FB+'/configs/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cf)});done++}catch(e){}}
+S('Inviato a '+done+'/'+codes.length,'ok');loadClients();
 }
 
 async function viewClient(code){
 document.getElementById('clientCode').value=code;
-var info=document.getElementById('clientInfo');
-document.getElementById('infoCode').textContent=code;
+var info=document.getElementById('clientInfo');document.getElementById('infoCode').textContent=code;
 try{
 var r1=await fetch(FB+'/configs/'+code+'.json');var d1=await r1.json();
 var r2=await fetch(FB+'/clients/'+code+'.json');var d2=await r2.json();
@@ -185,13 +192,12 @@ info.innerHTML=html;document.getElementById('infoCard').style.display='block';
 }catch(e){info.innerHTML='Errore: '+e.message}
 }
 
-async function delClient(code){if(!confirm('Eliminare '+code+'?'))return;await fetch(FB+'/configs/'+code+'.json',{method:'DELETE'});S('Eliminato '+code,'ok');viewClient(code);loadClients();}
-
-async function delPlaylist(code,index){if(!confirm('Eliminare?'))return;var r=await fetch(FB+'/clients/'+code+'.json');var d=await r.json();if(!d||!d.playlists)return;d.playlists.splice(index,1);await fetch(FB+'/clients/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});viewClient(code);loadClients();}
-
+async function delClient(code){if(!confirm('Eliminare '+code+'?'))return;await fetch(FB+'/configs/'+code+'.json',{method:'DELETE'});S('Eliminato '+code,'ok');loadClients();}
+async function delPlaylist(code,index){if(!confirm('Eliminare?'))return;var r=await fetch(FB+'/clients/'+code+'.json');var d=await r.json();if(!d||!d.playlists)return;d.playlists.splice(index,1);await fetch(FB+'/clients/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});loadClients();viewClient(code);}
 function copyUrl(btn){var url=btn.getAttribute('data-url');navigator.clipboard.writeText(url).then(function(){S('Copiato!','ok')}).catch(function(){S('Errore copia','err')});}
 
 loadClients();
 </script>
 </body>
+</html>
 </html>
