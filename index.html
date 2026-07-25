@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -27,6 +28,10 @@ h2{color:#e94560;font-size:14px;margin-bottom:10px}
 .cli{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;margin-bottom:6px;border-radius:6px;background:#0d1117;border:1px solid #21262d}
 .cli-code{color:#e94560;font-weight:700;font-size:14px}
 .cli-date{font-size:10px;color:#667788}
+.act-badge{padding:2px 6px;border-radius:3px;font-size:9px;margin-left:4px}
+.act-yes{background:#1b5e20;color:#a5d6a7}
+.act-no{background:#b71c1c;color:#ef9a9a}
+.act-exp{background:#e65100;color:#ffe0b2}
 .status{text-align:center;padding:8px;border-radius:6px;display:none;font-size:12px;margin-top:4px}
 .status.show{display:block}
 .ok{background:rgba(27,94,32,.6);color:#a5d6a7}
@@ -113,8 +118,9 @@ var actText='NON ATTIVO';
 var actColor='err';
 if(act===true||(act&&act!=='true')){actText='ATTIVO';actColor='ok';}
 if(act&&typeof act==='object'&&act.expires){var exp=new Date(act.expires);if(Date.now()>act.expires){actText='SCADUTO';actColor='del'}else{actText='Attivo fino '+exp.toLocaleDateString();actColor='ok';}}
-items.push('<div class="cli"><div><div class="cli-code">'+code+'</div><div class="cli-date" style="color:var(--c)">'+actText+' ('+pl.length+' PL)</div></div><div><button class="btn-sm" onclick="viewClient(\''+code+'\')">Vedi</button><button class="btn-sm del" onclick="delClient(\''+code+'\')">Elimina</button></div></div>'.replace('var(--c)',actColor==='ok'?'#4caf50':actColor==='del'?'#ef5350':'#8899aa'));
-}
+var ts=parseInt(d[code].lastSeen)||0;
+var dt=ts>0?new Date(ts).toLocaleString():'Mai';
+items.push('<div class="cli"><div><div class="cli-code">'+code+' <span class="act-badge '+(actColor==='ok'?'act-yes':actColor==='del'?'act-no':'')+'" style="background:'+(actColor==='ok'?'#1b5e20':actColor==='del'?'#b71c1c':'#555')+';color:'+(actColor==='ok'?'#a5d6a7':actColor==='del'?'#ef9a9a':'#8899aa')+'">'+actText+'</span></div><div class="cli-date">'+dt+' ('+pl.length+' PL)</div></div><div><button class="btn-sm" onclick="viewClient(\''+code+'\')">Vedi</button><button class="btn-sm del" onclick="delClient(\''+code+'\')">Elimina</button></div></div>');}
 list.innerHTML=items.join('');
 }catch(e){list.innerHTML='Errore: '+e.message}
 }
@@ -199,5 +205,4 @@ function copyUrl(btn){var url=btn.getAttribute('data-url');navigator.clipboard.w
 loadClients();
 </script>
 </body>
-</html>
 </html>
