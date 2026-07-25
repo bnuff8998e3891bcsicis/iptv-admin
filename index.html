@@ -54,7 +54,13 @@ h2{color:#e94560;font-size:14px;margin-bottom:10px}
 <option value="-1">Disattiva</option>
 </select>
 <button class="btn" style="background:#4caf50" onclick="activate()">Conferma</button>
-<button class="btn" style="background:#30363d;margin-top:6px" onclick="activateAll()">Attiva TUTTI (1 mese)</button>
+<select class="input" id="actAllPeriod" style="font-size:12px;margin-top:6px">
+<option value="1">Attiva TUTTI per 1 mese</option>
+<option value="3">Attiva TUTTI per 3 mesi</option>
+<option value="6">Attiva TUTTI per 6 mesi</option>
+<option value="12">Attiva TUTTI per 12 mesi</option>
+</select>
+<button class="btn" style="background:#30363d" onclick="activateAll()">Esegui</button>
 <div id="actStatus" style="text-align:center;font-size:12px;margin-top:4px"></div>
 </div>
 
@@ -142,13 +148,14 @@ loadClients();
 }
 
 async function activateAll(){
-if(!confirm('Attivare TUTTI per 1 mese?'))return;
+var period=parseInt(document.getElementById('actAllPeriod').value)||1;
+if(!confirm('Attivare TUTTI per '+period+' mesi?'))return;
 var r=await fetch(FB+'/clients.json');var d=await r.json();
 if(!d){return}
-var expires=Date.now()+30*86400000;
+var expires=Date.now()+period*30*86400000;
 var data=JSON.stringify({expires:expires});
 for(var code in d){await fetch(FB+'/activated/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:data});}
-S('Tutti attivati per 1 mese!','ok');loadClients();
+S('Tutti attivati per '+period+' mesi!','ok');loadClients();
 }
 
 async function send(){
