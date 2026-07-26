@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -64,8 +65,21 @@ h2{color:#e94560;font-size:14px;margin-bottom:10px}
 </div>
 
 <div class="card">
-<h2>Clienti Registrati <button class="btn-sm" onclick="loadClients()" style="float:right">Aggiorna</button></h2>
+<h2>Clienti Registrati <span id="clientCount" style="font-size:11px;color:#667788;font-weight:normal"></span> <button class="btn-sm" onclick="loadClients()" style="float:right">Aggiorna</button></h2>
+<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+<button class="btn-sm" id="autoBtn" style="background:#333;color:#8899aa;border-color:#555" onclick="toggleAuto()">⏹ Auto OFF</button>
+<select id="autoPeriod" style="padding:4px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;font-size:10px">
+<option value="1">1 mese</option>
+<option value="3" selected>3 mesi</option>
+<option value="6">6 mesi</option>
+<option value="12">12 mesi</option>
+</select>
+<span id="autoCount" style="font-size:10px;color:#667788"></span>
+</div>
 <div id="clientsList">Caricamento...</div>
+<div id="showMoreWrap" style="display:none;text-align:center;margin-top:4px">
+<button class="btn-sm" id="showMoreBtn" onclick="toggleShowAll()" style="color:#e94560">Mostra tutti</button>
+</div>
 </div>
 
 <div class="card">
@@ -108,26 +122,7 @@ async function loadActivated(){
 try{var r=await fetch(FB+'/activated.json');var d=await r.json();activated=d||{};}catch(e){activated={};}
 }
 
-async function loadClients(){
-await loadActivated();
-var list=document.getElementById('clientsList');
-try{
-var r=await fetch(FB+'/clients.json');var d=await r.json();
-if(!d||Object.keys(d).length===0){list.innerHTML='Nessun cliente';return}
-var items=[];
-for(var code in d){
-var pl=d[code].playlists||[];
-var act=activated[code];
-var actText='NON ATTIVO';
-var actColor='err';
-if(act===true||(act&&act!=='true')){actText='ATTIVO';actColor='ok';}
-if(act&&typeof act==='object'&&act.expires){var exp=new Date(act.expires);if(Date.now()>act.expires){actText='SCADUTO';actColor='del'}else{actText='Attivo fino '+exp.toLocaleDateString();actColor='ok';}}
-var ts=parseInt(d[code].lastSeen)||0;
-var dt=ts>0?new Date(ts).toLocaleString():'Mai';
-items.push('<div class="cli"><div><div class="cli-code">'+code+' <span class="act-badge '+(actColor==='ok'?'act-yes':actColor==='del'?'act-no':'')+'" style="background:'+(actColor==='ok'?'#1b5e20':actColor==='del'?'#b71c1c':'#555')+';color:'+(actColor==='ok'?'#a5d6a7':actColor==='del'?'#ef9a9a':'#8899aa')+'">'+actText+'</span></div><div class="cli-date">'+dt+' ('+pl.length+' PL)</div></div><div><button class="btn-sm" onclick="viewClient(\''+code+'\')">Vedi</button><button class="btn-sm del" onclick="delClient(\''+code+'\')">Elimina</button></div></div>');}
-list.innerHTML=items.join('');
-}catch(e){list.innerHTML='Errore: '+e.message}
-}
+
 
 async function activate(){
 var code=document.getElementById('actCode').value.trim().toUpperCase();
@@ -206,6 +201,75 @@ async function delClient(code){if(!confirm('Eliminare '+code+'?'))return;await f
 async function delPlaylist(code,index){if(!confirm('Eliminare?'))return;var r=await fetch(FB+'/clients/'+code+'.json');var d=await r.json();if(!d||!d.playlists)return;d.playlists.splice(index,1);await fetch(FB+'/clients/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});loadClients();viewClient(code);}
 function copyUrl(btn){var url=btn.getAttribute('data-url');navigator.clipboard.writeText(url).then(function(){S('Copiato!','ok')}).catch(function(){S('Errore copia','err')});}
 
+var autoActive=localStorage.getItem('autoActive')==='true';
+var showAll=false;
+var allClients=[];
+function toggleAuto(){
+autoActive=!autoActive;
+localStorage.setItem('autoActive',autoActive);
+var btn=document.getElementById('autoBtn');
+btn.textContent=autoActive?'▶ Auto ON':'⏹ Auto OFF';
+btn.style.background=autoActive?'#1b5e20':'#333';
+btn.style.color=autoActive?'#a5d6a7':'#8899aa';
+loadClients();
+}
+function toggleShowAll(){
+showAll=!showAll;
+document.getElementById('showMoreBtn').textContent=showAll?'Mostra meno':'Mostra tutti';
+renderClients();
+}
+function renderClients(){
+var items=[];
+var d=allClients;
+document.getElementById('clientCount').textContent='- Totale: '+d.length;
+var limit=showAll?d.length:Math.min(20,d.length);
+for(var i=0;i<limit;i++){
+var code=d[i].code,pl=d[i].pl,ts=d[i].ts;
+var act=activated[code];
+var actText='NON ATTIVO';var actColor='err';
+if(act===true||(act&&act!=='true')){actText='ATTIVO';actColor='ok';}
+if(act&&typeof act==='object'&&act.expires){var exp=new Date(act.expires);if(Date.now()>act.expires){actText='SCADUTO';actColor='del'}else{actText='Attivo fino '+exp.toLocaleDateString();actColor='ok';}}
+var dt=ts>0?new Date(ts).toLocaleString():'Mai';
+items.push('<div class="cli"><div><div class="cli-code">'+code+' <span class="act-badge '+(actColor==='ok'?'act-yes':actColor==='del'?'act-no':'')+'" style="background:'+(actColor==='ok'?'#1b5e20':actColor==='del'?'#b71c1c':'#555')+';color:'+(actColor==='ok'?'#a5d6a7':actColor==='del'?'#ef9a9a':'#8899aa')+'">'+actText+'</span></div><div class="cli-date">'+dt+' ('+pl.length+' PL)</div></div><div><button class="btn-sm" onclick="viewClient(\''+code+'\')">Vedi</button><button class="btn-sm del" onclick="delClient(\''+code+'\')">Elimina</button></div></div>');
+}
+document.getElementById('clientsList').innerHTML=items.join('');
+var wrap=document.getElementById('showMoreWrap');
+if(d.length>20){wrap.style.display='block';document.getElementById('showMoreBtn').textContent=showAll?'Mostra meno ('+d.length+')':'Mostra tutti ('+d.length+')';}else{wrap.style.display='none';}
+}
+async function loadClients(){
+await loadActivated();
+var list=document.getElementById('clientsList');
+try{
+var r=await fetch(FB+'/clients.json');var d=await r.json();
+if(!d||Object.keys(d).length===0){list.innerHTML='Nessun cliente';return}
+allClients=[];
+for(var code in d){
+allClients.push({code:code,pl:d[code].playlists||[],ts:parseInt(d[code].lastSeen)||0});
+}
+allClients.sort(function(a,b){return b.ts-a.ts});
+if(autoActive){
+var period=parseInt(document.getElementById('autoPeriod').value);
+var expires=Date.now()+period*30*86400000;
+var data=JSON.stringify({expires:expires});
+var count=0;
+for(var c of allClients){
+if(!activated[c.code]||activated[c.code]===false||(activated[c.code]&&typeof activated[c.code]==='object'&&activated[c.code].expires&&Date.now()>activated[c.code].expires)){
+await fetch(FB+'/activated/'+c.code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:data});
+count++;
+}
+}
+document.getElementById('autoCount').textContent='Attivati: '+count;
+if(count>0)await loadActivated();
+}
+renderClients();
+}catch(e){list.innerHTML='Errore: '+e.message}
+}
+
+// Inizializza stato auto
+(function(){
+var btn=document.getElementById('autoBtn');
+if(autoActive){btn.textContent='▶ Auto ON';btn.style.background='#1b5e20';btn.style.color='#a5d6a7';}
+})();
 loadClients();
 </script>
 </body>
