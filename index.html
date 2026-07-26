@@ -65,8 +65,15 @@ h2{color:#e94560;font-size:14px;margin-bottom:10px}
 
 <div class="card">
 <h2>Richiedi Donazione</h2>
-<div style="display:flex;gap:6px;align-items:center">
+<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
 <button class="btn-sm" id="donBtn" style="background:#333;color:#8899aa;border-color:#555" onclick="toggleDonation()">⏹ Richiedi OFF</button>
+<select id="donPeriod" style="padding:4px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;font-size:10px">
+<option value="0">Senza scadenza</option>
+<option value="7">7 giorni</option>
+<option value="30" selected>30 giorni</option>
+<option value="60">60 giorni</option>
+<option value="90">90 giorni</option>
+</select>
 </div>
 <div style="font-size:10px;color:#667788;margin-top:4px" id="donStatus">Disattivo</div>
 </div>
@@ -116,6 +123,7 @@ h2{color:#e94560;font-size:14px;margin-bottom:10px}
 <script>
 var FB='https://iptv-player-eac9e-default-rtdb.europe-west1.firebasedatabase.app';
 var activated={};
+var donated={};
 function S(m,t){document.getElementById('status').textContent=m;document.getElementById('status').className='status show '+t}
 function st(t){
 document.getElementById('tm').classList.toggle('active',t==='m3u');
@@ -128,6 +136,7 @@ document.getElementById('ps').style.display=t==='st'?'block':'none';
 
 async function loadActivated(){
 try{var r=await fetch(FB+'/activated.json');var d=await r.json();activated=d||{};}catch(e){activated={};}
+try{var r=await fetch(FB+'/donated.json');var d=await r.json();donated=d||{};}catch(e){donated={};}
 }
 
 
@@ -239,9 +248,16 @@ var btn=document.getElementById('donBtn');
 btn.textContent=donActive?'▶ Richiedi ON':'⏹ Richiedi OFF';
 btn.style.background=donActive?'#1b5e20':'#333';
 btn.style.color=donActive?'#a5d6a7':'#8899aa';
-var data=donActive?JSON.stringify({active:true,btc:btcAddr}):JSON.stringify({active:false});
+var data;
+if(donActive){
+var days=parseInt(document.getElementById('donPeriod').value);
+var expires=days>0?Date.now()+days*86400000:0;
+data=JSON.stringify({active:true,btc:btcAddr,expires:expires,days:days});
+}else{
+data=JSON.stringify({active:false});
+}
 fetch(FB+'/messages/donation.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:data});
-document.getElementById('donStatus').textContent=donActive?'Richiesta attiva - nuovi utenti vedranno il popup':'Disattivo';
+document.getElementById('donStatus').textContent=donActive?'Richiesta attiva'+(days>0?' - '+days+' giorni':' senza scadenza'):'Disattivo';
 }
 var autoActive=localStorage.getItem('autoActive')==='true';
 var showAll=false;
@@ -271,8 +287,10 @@ var act=activated[code];
 var actText='NON ATTIVO';var actColor='err';
 if(act===true||(act&&act!=='true')){actText='ATTIVO';actColor='ok';}
 if(act&&typeof act==='object'&&act.expires){var exp=new Date(act.expires);if(Date.now()>act.expires){actText='SCADUTO';actColor='del'}else{actText='Attivo fino '+exp.toLocaleDateString();actColor='ok';}}
-var dt=ts>0?new Date(ts).toLocaleString():'Mai';
-items.push('<div class="cli"><div><div class="cli-code">'+code+' <span class="act-badge '+(actColor==='ok'?'act-yes':actColor==='del'?'act-no':'')+'" style="background:'+(actColor==='ok'?'#1b5e20':actColor==='del'?'#b71c1c':'#555')+';color:'+(actColor==='ok'?'#a5d6a7':actColor==='del'?'#ef9a9a':'#8899aa')+'">'+actText+'</span></div><div class="cli-date">'+dt+' ('+pl.length+' PL)</div></div><div><button class="btn-sm" onclick="viewClient(\''+code+'\')">Vedi</button><button class="btn-sm del" onclick="delClient(\''+code+'\')">Elimina</button></div></div>');
+    var don=donated[code]===true;
+    var donBadge=don?' <span style="background:#3a3a00;color:#ffd700;padding:2px 5px;border-radius:3px;font-size:9px">❤️ DONATO</span>':'';
+    var dt=ts>0?new Date(ts).toLocaleString():'Mai';
+    items.push('<div class="cli"><div><div class="cli-code">'+code+donBadge+' <span class="act-badge '+(actColor==='ok'?'act-yes':actColor==='del'?'act-no':'')+'" style="background:'+(actColor==='ok'?'#1b5e20':actColor==='del'?'#b71c1c':'#555')+';color:'+(actColor==='ok'?'#a5d6a7':actColor==='del'?'#ef9a9a':'#8899aa')+'">'+actText+'</span></div><div class="cli-date">'+dt+' ('+pl.length+' PL)</div></div><div><button class="btn-sm" onclick="viewClient(\''+code+'\')">Vedi</button><button class="btn-sm del" onclick="delClient(\''+code+'\')">Elimina</button></div></div>');
 }
 document.getElementById('clientsList').innerHTML=items.join('');
 var wrap=document.getElementById('showMoreWrap');
@@ -291,12 +309,13 @@ allClients.push({code:code,pl:d[code].playlists||[],ts:parseInt(d[code].lastSeen
 allClients.sort(function(a,b){return b.ts-a.ts});
 if(autoActive){
 var period=parseInt(document.getElementById('autoPeriod').value);
-var expires=Date.now()+period*30*86400000;
-var data=JSON.stringify({expires:expires});
 var count=0;
 for(var c of allClients){
 if(!activated[c.code]||activated[c.code]===false||(activated[c.code]&&typeof activated[c.code]==='object'&&activated[c.code].expires&&Date.now()>activated[c.code].expires)){
-await fetch(FB+'/activated/'+c.code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:data});
+var p=period;
+if(donated[c.code]!==true)p=Math.min(p,3);
+var expires=Date.now()+p*30*86400000;
+await fetch(FB+'/activated/'+c.code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({expires:expires})});
 count++;
 }
 }
