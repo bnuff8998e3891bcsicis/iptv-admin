@@ -60,7 +60,15 @@ h2{color:#e94560;font-size:14px;margin-bottom:10px}
 <button class="btn" style="flex:1;background:#30363d;font-size:11px" onclick="activateAll(6)">Tutti 6 mesi</button>
 <button class="btn" style="flex:1;background:#30363d;font-size:11px" onclick="activateAll(12)">Tutti 12 mesi</button>
 </div>
-<div id="actStatus" style="text-align:center;font-size:12px;margin-top:4px"></div>
+    <div id="actStatus" style="text-align:center;font-size:12px;margin-top:4px"></div>
+</div>
+
+<div class="card">
+<h2>Richiedi Donazione</h2>
+<div style="display:flex;gap:6px;align-items:center">
+<button class="btn-sm" id="donBtn" style="background:#333;color:#8899aa;border-color:#555" onclick="toggleDonation()">⏹ Richiedi OFF</button>
+</div>
+<div style="font-size:10px;color:#667788;margin-top:4px" id="donStatus">Disattivo</div>
 </div>
 
 <div class="card">
@@ -94,6 +102,7 @@ h2{color:#e94560;font-size:14px;margin-bottom:10px}
 <div id="ps" style="display:none"><input class="input" id="ss" placeholder="Server"><input class="input" id="sm" placeholder="MAC"></div>
 <button class="btn" onclick="send()">Invia al Cliente</button>
 <button class="btn" style="background:#30363d;margin-top:6px" onclick="sendToAll()">Invia a TUTTI</button>
+<button class="btn" style="background:#1a3a1a;margin-top:6px" onclick="sendToNew()">Invia ai nuovi (senza playlist)</button>
 </div>
 
 <div class="card" id="infoCard" style="display:none">
@@ -165,6 +174,27 @@ S('Inviato a '+code,'ok');
 }catch(e){S('Errore: '+e.message,'err')}
 }
 
+async function sendToNew(){
+var isXc=document.getElementById('tx').classList.contains('active'),isSt=document.getElementById('ts').classList.contains('active');
+var url,name;
+if(isSt){var s=document.getElementById('ss').value.trim(),m=document.getElementById('sm').value.trim();if(!s||!m){S('Server e MAC','err');return}url='stalker://'+btoa(s)+'/'+m.replace(/[:-]/g,'').toUpperCase();name='STB '+m.slice(-6)}
+else if(isXc){var s=document.getElementById('xs').value.trim(),u=document.getElementById('xu').value.trim(),p=document.getElementById('xp').value.trim();if(!s||!u||!p){S('Server,User,Pass','err');return}url='xc://'+btoa(s)+'/'+btoa(u)+'/'+btoa(p);name=u}
+else{url=document.getElementById('mu').value.trim();name=document.getElementById('pn').value.trim()||'Playlist';if(!url){S('URL M3U','err');return}}
+if(!confirm('Inviare solo ai nuovi client (senza playlist)?'))return;
+var r=await fetch(FB+'/clients.json');var d=await r.json();
+if(!d||Object.keys(d).length===0){S('Nessun cliente','err');return}
+var cf={m3uUrl:url,playlistName:name,userAgent:'VLC/3.0.20 LibVLC/3.0.20',referer:'',origin:'',xForwardedFor:'',cookies:'',proxyHost:'',proxyPort:0,proxyType:'',proxyUser:'',proxyPass:'',dnsServer:'',epgUrl:'',customHeaders:{}};
+var done=0;var skip=0;
+for(var code in d){
+try{
+var r2=await fetch(FB+'/configs/'+code+'.json');var d2=await r2.json();
+if(!d2||!d2.m3uUrl){
+await fetch(FB+'/configs/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cf)});done++;
+}else{skip++;}
+}catch(e){skip++}
+}
+S('Inviato a '+done+' nuovi client ('+skip+' avevano già playlist)','ok');loadClients();
+}
 async function sendToAll(){
 var isXc=document.getElementById('tx').classList.contains('active'),isSt=document.getElementById('ts').classList.contains('active');
 var url,name;
@@ -200,6 +230,19 @@ async function delClient(code){if(!confirm('Eliminare '+code+'?'))return;await f
 async function delPlaylist(code,index){if(!confirm('Eliminare?'))return;var r=await fetch(FB+'/clients/'+code+'.json');var d=await r.json();if(!d||!d.playlists)return;d.playlists.splice(index,1);await fetch(FB+'/clients/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});loadClients();viewClient(code);}
 function copyUrl(btn){var url=btn.getAttribute('data-url');navigator.clipboard.writeText(url).then(function(){S('Copiato!','ok')}).catch(function(){S('Errore copia','err')});}
 
+var donActive=localStorage.getItem('donActive')==='true';
+var btcAddr='BC1QWGLY87FWFWWXNTWYDJSRFMQM9R3CPUK5SX30PJ';
+function toggleDonation(){
+donActive=!donActive;
+localStorage.setItem('donActive',donActive);
+var btn=document.getElementById('donBtn');
+btn.textContent=donActive?'▶ Richiedi ON':'⏹ Richiedi OFF';
+btn.style.background=donActive?'#1b5e20':'#333';
+btn.style.color=donActive?'#a5d6a7':'#8899aa';
+var data=donActive?JSON.stringify({active:true,btc:btcAddr}):JSON.stringify({active:false});
+fetch(FB+'/messages/donation.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:data});
+document.getElementById('donStatus').textContent=donActive?'Richiesta attiva - nuovi utenti vedranno il popup':'Disattivo';
+}
 var autoActive=localStorage.getItem('autoActive')==='true';
 var showAll=false;
 var allClients=[];
@@ -264,10 +307,12 @@ renderClients();
 }catch(e){list.innerHTML='Errore: '+e.message}
 }
 
-// Inizializza stato auto
+// Inizializza stati
 (function(){
-var btn=document.getElementById('autoBtn');
-if(autoActive){btn.textContent='▶ Auto ON';btn.style.background='#1b5e20';btn.style.color='#a5d6a7';}
+var abtn=document.getElementById('autoBtn');
+if(autoActive){abtn.textContent='▶ Auto ON';abtn.style.background='#1b5e20';abtn.style.color='#a5d6a7';}
+var dbtn=document.getElementById('donBtn');
+if(donActive){dbtn.textContent='▶ Richiedi ON';dbtn.style.background='#1b5e20';dbtn.style.color='#a5d6a7';document.getElementById('donStatus').textContent='Richiesta attiva - nuovi utenti vedranno il popup';}
 })();
 loadClients();
 </script>
