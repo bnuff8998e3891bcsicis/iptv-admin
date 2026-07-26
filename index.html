@@ -238,6 +238,11 @@ info.innerHTML=html;document.getElementById('infoCard').style.display='block';
 }catch(e){info.innerHTML='Errore: '+e.message}
 }
 
+async function confirmDonation(code){
+if(!confirm('Confermare donazione per '+code+'?'))return;
+await fetch(FB+'/donated/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({donated:true})});
+S('Donazione confermata per '+code,'ok');loadClients();
+}
 async function delClient(code){if(!confirm('Eliminare '+code+'?'))return;await fetch(FB+'/configs/'+code+'.json',{method:'DELETE'});S('Eliminato '+code,'ok');loadClients();}
 async function delPlaylist(code,index){if(!confirm('Eliminare?'))return;var r=await fetch(FB+'/clients/'+code+'.json');var d=await r.json();if(!d||!d.playlists)return;d.playlists.splice(index,1);await fetch(FB+'/clients/'+code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});loadClients();viewClient(code);}
 function copyUrl(btn){var url=btn.getAttribute('data-url');navigator.clipboard.writeText(url).then(function(){S('Copiato!','ok')}).catch(function(){S('Errore copia','err')});}
@@ -290,8 +295,10 @@ var act=activated[code];
 var actText='NON ATTIVO';var actColor='err';
 if(act===true||(act&&act!=='true')){actText='ATTIVO';actColor='ok';}
 if(act&&typeof act==='object'&&act.expires){var exp=new Date(act.expires);if(Date.now()>act.expires){actText='SCADUTO';actColor='del'}else{actText='Attivo fino '+exp.toLocaleDateString();actColor='ok';}}
-    var don=donated[code]===true;
-    var donBadge=don?' <span style="background:#3a3a00;color:#ffd700;padding:2px 5px;border-radius:3px;font-size:9px">❤️ DONATO</span>':'';
+    var don=donated[code];
+    var donBadge='';
+    if(don===true||(don&&don.donated===true)){donBadge=' <span style="background:#3a3a00;color:#ffd700;padding:2px 5px;border-radius:3px;font-size:9px">❤️ DONATO</span>';}
+    else if(don&&don.pending===true){donBadge=' <span style="background:#1a3a5e;color:#64b5f6;padding:2px 5px;border-radius:3px;font-size:9px">⏳ TXID: '+(don.txid?don.txid.substring(0,8)+'...':'in attesa')+'</span> <button class="btn-sm ok" style="font-size:8px;padding:1px 4px" onclick="confirmDonation(\''+code+'\')">Conferma</button>';}
     var dt=ts>0?new Date(ts).toLocaleString():'Mai';
     items.push('<div class="cli"><div><div class="cli-code">'+code+donBadge+' <span class="act-badge '+(actColor==='ok'?'act-yes':actColor==='del'?'act-no':'')+'" style="background:'+(actColor==='ok'?'#1b5e20':actColor==='del'?'#b71c1c':'#555')+';color:'+(actColor==='ok'?'#a5d6a7':actColor==='del'?'#ef9a9a':'#8899aa')+'">'+actText+'</span></div><div class="cli-date">'+dt+' ('+pl.length+' PL)</div></div><div><button class="btn-sm" onclick="viewClient(\''+code+'\')">Vedi</button><button class="btn-sm del" onclick="delClient(\''+code+'\')">Elimina</button></div></div>');
 }
@@ -316,7 +323,9 @@ var count=0;
 for(var c of allClients){
 if(!activated[c.code]||activated[c.code]===false||(activated[c.code]&&typeof activated[c.code]==='object'&&activated[c.code].expires&&Date.now()>activated[c.code].expires)){
 var p=period;
-if(donated[c.code]!==true)p=Math.min(p,3);
+var dd=donated[c.code];
+var isDonor=dd===true||(dd&&dd.donated===true);
+if(!isDonor)p=Math.min(p,3);
 var expires=Date.now()+p*30*86400000;
 await fetch(FB+'/activated/'+c.code+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({expires:expires})});
 count++;
