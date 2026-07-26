@@ -225,8 +225,11 @@ var info=document.getElementById('clientInfo');document.getElementById('infoCode
 try{
 var r1=await fetch(FB+'/configs/'+code+'.json');var d1=await r1.json();
 var r2=await fetch(FB+'/clients/'+code+'.json');var d2=await r2.json();
+var r3=await fetch(FB+'/donated/'+code+'.json');var d3=await r3.json();
 var pl=d2&&d2.playlists?d2.playlists:[];
-var html='<div style="font-size:12px;color:#8899aa;margin-bottom:6px"><b>Cloud:</b> '+(d1&&d1.m3uUrl?'<span style="color:#4caf50">Presente</span>':'<span style="color:#667788">Vuoto</span>')+'</div>';
+var donHtml='';
+if(d3&&d3.donated===true){donHtml='<div style="font-size:12px;color:#ffd700;margin-bottom:6px"><b>❤️ Donato</b>'+(d3.txid?' - TXID: <span style="color:#8899aa;font-size:10px">'+d3.txid+'</span>':'')+'</div>';}
+var html=donHtml+'<div style="font-size:12px;color:#8899aa;margin-bottom:6px"><b>Cloud:</b> '+(d1&&d1.m3uUrl?'<span style="color:#4caf50">Presente</span>':'<span style="color:#667788">Vuoto</span>')+'</div>';
 html+='<div style="font-size:12px;color:#8899aa;margin-bottom:6px"><b>Dispositivo ('+pl.length+' playlist):</b></div>';
 if(pl.length>0){pl.forEach(function(p,i){html+='<div class="cli" style="padding:6px 8px"><div><div style="color:#fff;font-size:12px">'+p.name+'</div><div style="color:#667788;font-size:10px;word-break:break-all">'+p.url+'</div></div><div><button class="btn-sm" onclick="copyUrl(this)" data-url="'+p.url.replace(/"/g,'&quot;')+'">Copia</button> <button class="btn-sm del" onclick="delPlaylist(\''+code+'\','+i+')">X</button></div></div>';});}
 else{html+='<div style="color:#667788;font-size:11px">Nessuna</div>';}
